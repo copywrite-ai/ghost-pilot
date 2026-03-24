@@ -345,13 +345,13 @@ export async function startRecording(opts = {}) {
   const context = await browser.newContext({ viewport: null }); // null = use full window size
   const page = await context.newPage();
 
-  // Fullscreen via CDP (--start-fullscreen is unreliable on macOS)
+  // Maximize window via CDP (fill screen, keep title bar + Dock)
   try {
     const cdp = await page.context().newCDPSession(page);
     const { windowId } = await cdp.send('Browser.getWindowForTarget');
     await cdp.send('Browser.setWindowBounds', {
       windowId,
-      bounds: { windowState: 'fullscreen' },
+      bounds: { windowState: 'maximized' },
     });
     await sleep(500); // wait for transition
   } catch (err) {
