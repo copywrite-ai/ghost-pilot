@@ -116,32 +116,20 @@ export async function runScenario(scenario, opts = {}) {
         }
 
         case 'scroll': {
-          // Convert recorded delta to pixels (roughly 40px per "line" of scroll)
+          // Use Playwright's mouse.wheel — CGEvent scroll doesn't reach Chromium.
+          // Scroll doesn't involve cursor movement, so recordings look the same.
           const delta = step.delta || -3;
-          const pixels = delta * 40;  // negative = scroll down
+          const totalPixels = delta * 40;  // negative delta = scroll down = positive deltaY
 
-          // Get a position in center of viewport for scrolling
-          const vp = page.viewportSize();
-          const scrollX = chrome.windowX + chrome.chromeLeft + (vp?.width || 720) / 2;
-          const scrollY = chrome.windowY + chrome.chromeTop + (vp?.height || 450) / 2;
+          if (verbose) console.log(`     → scroll ${totalPixels}px`);
 
-          // If a target element is specified, move there first
-          if (step.selector) {
-            const el = await page.$(step.selector);
-            if (el) {
-              const box = await el.boundingBox();
-              if (box) {
-                const pos = toScreenCoords(chrome, box);
-                mouse.move(pos.x, pos.y, { duration: Math.round(moveDuration / 3) });
-                await sleep(150);
-              }
-            }
+          // Smooth scroll: emit multiple small wheel events
+          const scrollSteps = 10;
+          const perStep = Math.round(-totalPixels / scrollSteps); // wheel deltaY: positive = down
+          for (let s = 0; s < scrollSteps; s++) {
+            await page.mouse.wheel(0, perStep);
+            await sleep(40);
           }
-
-          if (verbose) console.log(`     → smooth-scroll ${pixels}px`);
-          mouse.smoothScroll(scrollX, scrollY, pixels, {
-            duration: Math.max(300, Math.min(1200, Math.abs(pixels) * 2)),
-          });
           break;
         }
 
