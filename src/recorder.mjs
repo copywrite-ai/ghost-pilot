@@ -336,7 +336,6 @@ export async function startRecording(opts = {}) {
   const browser = await chromium.launch({
     headless: false,
     args: [
-      '--start-fullscreen',
       '--disable-infobars',
       '--no-first-run',
       '--no-default-browser-check',
@@ -345,6 +344,19 @@ export async function startRecording(opts = {}) {
 
   const context = await browser.newContext({ viewport: null }); // null = use full window size
   const page = await context.newPage();
+
+  // Fullscreen via CDP (--start-fullscreen is unreliable on macOS)
+  try {
+    const cdp = await page.context().newCDPSession(page);
+    const { windowId } = await cdp.send('Browser.getWindowForTarget');
+    await cdp.send('Browser.setWindowBounds', {
+      windowId,
+      bounds: { windowState: 'fullscreen' },
+    });
+    await sleep(500); // wait for transition
+  } catch (err) {
+    console.error('  ⚠️  Could not fullscreen browser:', err.message);
+  }
 
   // Expose function BEFORE navigation so it's available immediately
   await page.exposeFunction('__ghostPilotPushStep', (stepJson) => {
@@ -362,7 +374,7 @@ export async function startRecording(opts = {}) {
   // Inject recorder script
   await page.evaluate(INJECTED_SCRIPT);
   console.log(`🔴 Recording started. Interact with the page.`);
-  console.log(`   Press Ctrl+C in terminal to stop and save.\n`);
+  console.log(`   Click the Stop button (top-right) to save.\n`);
 
   // Re-inject on navigation (exposeFunction persists across navigations)
   page.on('framenavigated', async (frame) => {
