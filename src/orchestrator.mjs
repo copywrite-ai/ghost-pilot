@@ -117,18 +117,22 @@ export async function runScenario(scenario, opts = {}) {
 
         case 'scroll': {
           // Use Playwright's mouse.wheel — CGEvent scroll doesn't reach Chromium.
-          // Scroll doesn't involve cursor movement, so recordings look the same.
-          const delta = step.delta || -3;
-          const totalPixels = delta * 40;  // negative delta = scroll down = positive deltaY
+          // Support both new `pixels` field and legacy `delta` field
+          let totalPixels;
+          if (step.pixels != null) {
+            totalPixels = step.pixels;  // new format: actual pixel value
+          } else {
+            totalPixels = (step.delta || -3) * 40;  // legacy: line-based delta
+          }
 
           if (verbose) console.log(`     → scroll ${totalPixels}px`);
 
           // Smooth scroll: emit multiple small wheel events
-          const scrollSteps = 10;
-          const perStep = Math.round(-totalPixels / scrollSteps); // wheel deltaY: positive = down
+          const scrollSteps = Math.max(5, Math.round(Math.abs(totalPixels) / 60));
+          const perStep = Math.round(totalPixels / scrollSteps);
           for (let s = 0; s < scrollSteps; s++) {
             await page.mouse.wheel(0, perStep);
-            await sleep(40);
+            await sleep(30);
           }
           break;
         }

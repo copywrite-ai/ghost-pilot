@@ -22,53 +22,106 @@ const INJECTED_SCRIPT = `
   window.__ghostPilotRecorder = { recording: true, stepCount: 0 };
   const rec = window.__ghostPilotRecorder;
 
+  // ── Helpers ────────────────────────────────────────────────────
+  const INTERACTIVE_TAGS = ['button', 'a', 'input', 'select', 'textarea', 'label', 'details', 'summary'];
+  const INLINE_TAGS = ['span', 'svg', 'path', 'img', 'i', 'em', 'strong', 'b', 'small', 'use', 'circle', 'rect', 'line'];
+
+  // Filter out CSS hash classes (e.g. css-1p3hq3p, ant-xxx-hash)
+  function isStableClass(c) {
+    if (c.startsWith('__')) return false;
+    if (c.length > 50) return false;
+    // CSS-in-JS hashes: css-XXXXX, e.g. css-1p3hq3p
+    if (/^css-[a-z0-9]{4,}$/i.test(c)) return false;
+    // Random hash suffixes: ant-space-css-var-xxx
+    if (/[a-f0-9]{6,}$/i.test(c) && c.includes('-')) return false;
+    return true;
+  }
+
+  // Bubble from inline element to nearest interactive parent
+  function getInteractiveTarget(el) {
+    let current = el;
+    const tag = current.tagName.toLowerCase();
+    // If it's an inline child of an interactive element, walk up
+    if (INLINE_TAGS.includes(tag)) {
+      const interactive = current.closest(INTERACTIVE_TAGS.map(t => t).join(','));
+      if (interactive) return interactive;
+    }
+    // Also check if parent is interactive (e.g. span inside button)
+    if (current.parentElement) {
+      const parentTag = current.parentElement.tagName.toLowerCase();
+      if (INTERACTIVE_TAGS.includes(parentTag)) return current.parentElement;
+    }
+    return current;
+  }
+
   // ── Unique selector generator ──────────────────────────────────
   function getSelector(el) {
     if (!el || el === document.body || el === document.documentElement) return 'body';
 
-    // 1. ID (if unique on page)
-    if (el.id) {
+    // 1. ID (if unique and not dynamic)
+    if (el.id && !/^[0-9]/.test(el.id) && !el.id.includes(':')) {
       const sel = '#' + CSS.escape(el.id);
-      if (document.querySelectorAll(sel).length === 1) return sel;
+      try {
+        if (document.querySelectorAll(sel).length === 1) return sel;
+      } catch {}
     }
 
-    // 2. data-testid
-    const testId = el.getAttribute('data-testid') || el.getAttribute('data-test-id');
-    if (testId) {
-      const sel = '[data-testid="' + testId + '"]';
-      if (document.querySelectorAll(sel).length === 1) return sel;
-    }
-
-    // 3. Tag + unique class combination
-    const tag = el.tagName.toLowerCase();
-    if (el.classList.length > 0) {
-      const classes = Array.from(el.classList)
-        .filter(c => !c.startsWith('__') && c.length < 60)
-        .map(c => '.' + CSS.escape(c))
-        .join('');
-      if (classes) {
-        const sel = tag + classes;
+    // 2. data-testid / data-test / data-cy
+    for (const attr of ['data-testid', 'data-test-id', 'data-test', 'data-cy']) {
+      const val = el.getAttribute(attr);
+      if (val) {
+        const sel = '[' + attr + '="' + val + '"]';
         try {
           if (document.querySelectorAll(sel).length === 1) return sel;
         } catch {}
       }
     }
 
+    // 3. Tag + stable class combination (no CSS hashes)
+    const tag = el.tagName.toLowerCase();
+    if (el.classList.length > 0) {
+      const stableClasses = Array.from(el.classList).filter(isStableClass);
+      if (stableClasses.length > 0) {
+        const classes = stableClasses.map(c => '.' + CSS.escape(c)).join('');
+        const sel = tag + classes;
+        try {
+          if (document.querySelectorAll(sel).length === 1) return sel;
+        } catch {}
+        // Try with just the most specific class
+        for (const c of stableClasses) {
+          const sel2 = tag + '.' + CSS.escape(c);
+          try {
+            if (document.querySelectorAll(sel2).length === 1) return sel2;
+          } catch {}
+        }
+      }
+    }
+
     // 4. Aria labels
     const ariaLabel = el.getAttribute('aria-label');
-    if (ariaLabel) {
+    if (ariaLabel && ariaLabel.length < 80) {
       const sel = tag + '[aria-label="' + ariaLabel.replace(/"/g, '\\\\"') + '"]';
       try {
         if (document.querySelectorAll(sel).length === 1) return sel;
       } catch {}
     }
 
-    // 5. nth-child path (fallback)
+    // 5. Text content for interactive elements (short text only)
+    if (INTERACTIVE_TAGS.includes(tag)) {
+      const text = (el.textContent || '').trim();
+      if (text.length > 0 && text.length < 30) {
+        // Use Playwright text selector format
+        const sel = tag + ':has-text("' + text.replace(/"/g, '\\\\"') + '")';
+        // Can't verify in plain CSS, but it works in Playwright
+      }
+    }
+
+    // 6. nth-child path (fallback) — skip CSS hash classes
     const path = [];
     let current = el;
     while (current && current !== document.body) {
       let seg = current.tagName.toLowerCase();
-      if (current.id) {
+      if (current.id && !/^[0-9]/.test(current.id) && !current.id.includes(':')) {
         seg = '#' + CSS.escape(current.id);
         path.unshift(seg);
         break;
@@ -81,13 +134,14 @@ const INJECTED_SCRIPT = `
           seg += ':nth-of-type(' + idx + ')';
         }
       }
+      // Add stable classes only
       if (current.classList.length > 0) {
-        const cls = Array.from(current.classList)
-          .filter(c => !c.startsWith('__') && c.length < 40)
+        const stableCls = Array.from(current.classList)
+          .filter(isStableClass)
           .slice(0, 2)
           .map(c => '.' + CSS.escape(c))
           .join('');
-        if (cls) seg += cls;
+        if (stableCls) seg += stableCls;
       }
       path.unshift(seg);
       current = parent;
@@ -102,8 +156,7 @@ const INJECTED_SCRIPT = `
     if (title) return title;
     const text = (el.textContent || '').trim();
     if (text.length > 0 && text.length < 60) return text;
-    const tag = el.tagName.toLowerCase();
-    return tag;
+    return el.tagName.toLowerCase();
   }
 
   // ── Push step to Node.js (real-time sync) ──────────────────────
@@ -114,38 +167,47 @@ const INJECTED_SCRIPT = `
     }
   }
 
-  // ── Click listener ─────────────────────────────────────────────
+  // ── Click listener — bubble to interactive element ─────────────
   document.addEventListener('click', (e) => {
     if (!rec.recording) return;
-    // Ignore our own UI elements
     if (e.target.closest('#__ghostPilotBadge, #__ghostPilotCounter')) return;
-    const selector = getSelector(e.target);
-    const label = getLabel(e.target);
+    const target = getInteractiveTarget(e.target);
+    const selector = getSelector(target);
+    const label = getLabel(target);
     pushStep({
       action: 'click',
       selector,
       label: 'Click: ' + label.substring(0, 50),
       _timestamp: Date.now(),
     });
-    console.log('[ghost-pilot] click:', selector);
+    console.log('[ghost-pilot] click:', selector, '(' + label.substring(0, 30) + ')');
   }, true);
 
-  // ── Scroll listener (debounced) ────────────────────────────────
+  // ── Scroll listener — track actual pixel delta ─────────────────
   let scrollTimer = null;
-  let scrollAccum = 0;
+  let scrollStartY = window.scrollY;
+  let scrolling = false;
   window.addEventListener('scroll', () => {
     if (!rec.recording) return;
-    scrollAccum += 1;
+    if (!scrolling) {
+      scrollStartY = window.scrollY - (window.scrollY - scrollStartY); // capture start
+      scrolling = true;
+      scrollStartY = window.scrollY;
+    }
     clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
-      pushStep({
-        action: 'scroll',
-        delta: -Math.round(scrollAccum / 2),
-        label: 'Scroll page',
-        _timestamp: Date.now(),
-      });
-      console.log('[ghost-pilot] scroll delta:', -scrollAccum);
-      scrollAccum = 0;
+      const pixelsDelta = window.scrollY - scrollStartY;
+      if (Math.abs(pixelsDelta) > 5) {
+        pushStep({
+          action: 'scroll',
+          pixels: pixelsDelta,  // actual pixels scrolled (positive = down)
+          label: 'Scroll ' + (pixelsDelta > 0 ? 'down' : 'up') + ' ' + Math.abs(pixelsDelta) + 'px',
+          _timestamp: Date.now(),
+        });
+        console.log('[ghost-pilot] scroll:', pixelsDelta + 'px');
+      }
+      scrollStartY = window.scrollY;
+      scrolling = false;
     }, 300);
   }, true);
 
