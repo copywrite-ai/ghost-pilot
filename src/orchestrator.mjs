@@ -63,6 +63,74 @@ export async function runScenario(scenario, opts = {}) {
       console.log(`   Window: (${chrome.windowX}, ${chrome.windowY})\n`);
     }
 
+    // Inject playback HUD
+    await page.evaluate(() => {
+      const hud = document.createElement('div');
+      hud.id = '__ghostPilotHUD';
+      hud.style.cssText = 'position:fixed;top:8px;right:8px;z-index:999999;display:flex;align-items:center;gap:8px;background:rgba(30,30,30,0.92);color:#fff;padding:6px 14px;border-radius:10px;font:12px/1.4 -apple-system,sans-serif;pointer-events:none;backdrop-filter:blur(8px);box-shadow:0 2px 12px rgba(0,0,0,0.3);';
+
+      const dot = document.createElement('span');
+      dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#34c759;';
+      hud.appendChild(dot);
+
+      const time = document.createElement('span');
+      time.id = '__gpTime';
+      time.textContent = '00:00';
+      time.style.cssText = 'font-variant-numeric:tabular-nums;';
+      hud.appendChild(time);
+
+      const s1 = document.createElement('span');
+      s1.textContent = '·';
+      s1.style.cssText = 'opacity:0.4;';
+      hud.appendChild(s1);
+
+      const fps = document.createElement('span');
+      fps.id = '__gpFPS';
+      fps.textContent = '0 fps';
+      fps.style.cssText = 'font-variant-numeric:tabular-nums;color:#8e8e93;';
+      hud.appendChild(fps);
+
+      const s2 = document.createElement('span');
+      s2.textContent = '·';
+      s2.style.cssText = 'opacity:0.4;';
+      hud.appendChild(s2);
+
+      const step = document.createElement('span');
+      step.id = '__gpStep';
+      step.textContent = '0/0';
+      step.style.cssText = 'font-variant-numeric:tabular-nums;color:#8e8e93;';
+      hud.appendChild(step);
+
+      document.body.appendChild(hud);
+
+      // FPS tracking
+      window.__gpMoveTimes = [];
+      window.__gpStart = Date.now();
+      window.__gpInterval = setInterval(() => {
+        const el = Date.now() - window.__gpStart;
+        const mm = String(Math.floor(el / 60000)).padStart(2, '0');
+        const ss = String(Math.floor((el % 60000) / 1000)).padStart(2, '0');
+        document.getElementById('__gpTime').textContent = mm + ':' + ss;
+
+        const now = Date.now();
+        const arr = window.__gpMoveTimes;
+        while (arr.length && arr[0] < now - 1000) arr.shift();
+        document.getElementById('__gpFPS').textContent = arr.length + ' fps';
+      }, 250);
+    });
+
+    // Helper to update HUD step counter
+    const updateHUD = async (stepIdx, total, moveCount) => {
+      await page.evaluate(({ s, t, m }) => {
+        const el = document.getElementById('__gpStep');
+        if (el) el.textContent = s + '/' + t;
+        if (m > 0 && window.__gpMoveTimes) {
+          const now = Date.now();
+          for (let i = 0; i < m; i++) window.__gpMoveTimes.push(now);
+        }
+      }, { s: stepIdx, t: total, m: moveCount }).catch(() => {});
+    };
+
     // Execute steps
     for (let i = 0; i < scenario.steps.length; i++) {
       const step = scenario.steps[i];
@@ -71,6 +139,7 @@ export async function runScenario(scenario, opts = {}) {
       const postDelay = Math.round((step.delay || 500) / speed);
 
       if (verbose) console.log(`  [${i + 1}/${scenario.steps.length}] ${label}`);
+      await updateHUD(i + 1, scenario.steps.length, 0);
 
       // Wait for target element if specified
       const selector = step.waitFor || step.selector;
@@ -120,6 +189,7 @@ export async function runScenario(scenario, opts = {}) {
             };
           });
 
+          await updateHUD(i + 1, scenario.steps.length, allPoints.length);
           mouse.batchMove(screenPoints);
           break;
         }
