@@ -87,6 +87,29 @@ export async function runScenario(scenario, opts = {}) {
       chrome = await getBrowserChrome(page);
 
       switch (step.action) {
+        case 'moves': {
+          // Replay exact recorded mouse trajectory via batch-move
+          const points = step.points;
+          if (!points || points.length === 0) break;
+
+          if (verbose) console.log(`     → replay ${points.length} mouse positions`);
+
+          // Convert viewport coords to screen coords and compute delays
+          const screenPoints = points.map((pt, idx) => {
+            const delay = idx < points.length - 1
+              ? Math.max(0, Math.min(200, (points[idx + 1].t - pt.t) / speed))
+              : 0;
+            return {
+              x: chrome.windowX + chrome.chromeLeft + pt.x,
+              y: chrome.windowY + chrome.chromeTop + pt.y,
+              delay,
+            };
+          });
+
+          mouse.batchMove(screenPoints);
+          break;
+        }
+
         case 'click': {
           const el = await page.$(step.selector);
           if (!el) {
@@ -99,8 +122,18 @@ export async function runScenario(scenario, opts = {}) {
             continue;
           }
           const pos = toScreenCoords(chrome, box);
-          if (verbose) console.log(`     → click at (${pos.x}, ${pos.y})`);
-          mouse.moveAndClick(pos.x, pos.y, { duration: moveDuration });
+
+          // Check if previous step was a movement — cursor is already near target
+          const prevStep = i > 0 ? scenario.steps[i - 1] : null;
+          if (prevStep && prevStep.action === 'moves') {
+            // Just click at the element position (cursor should be close)
+            if (verbose) console.log(`     → click at (${pos.x}, ${pos.y})`);
+            mouse.moveAndClick(pos.x, pos.y, { duration: 100, steps: 5 });
+          } else {
+            // No recorded movement before this — do a smooth move
+            if (verbose) console.log(`     → move+click at (${pos.x}, ${pos.y})`);
+            mouse.moveAndClick(pos.x, pos.y, { duration: moveDuration });
+          }
           break;
         }
 

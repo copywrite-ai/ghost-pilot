@@ -211,6 +211,44 @@ const INJECTED_SCRIPT = `
     }, 300);
   }, true);
 
+  // ── Mouse move listener (~30Hz sampling) ───────────────────────
+  let lastMoveTime = 0;
+  const MOVE_INTERVAL = 33; // ~30Hz
+  let moveBatch = [];
+  let moveFlushTimer = null;
+
+  function flushMoves() {
+    if (moveBatch.length === 0) return;
+    // Send batch as a single step to reduce IPC overhead
+    pushStep({
+      action: 'moves',
+      points: moveBatch.slice(),
+      _timestamp: moveBatch[moveBatch.length - 1].t,
+    });
+    moveBatch = [];
+  }
+
+  document.addEventListener('mousemove', (e) => {
+    if (!rec.recording) return;
+    const now = Date.now();
+    if (now - lastMoveTime < MOVE_INTERVAL) return;
+    lastMoveTime = now;
+
+    moveBatch.push({
+      x: Math.round(e.clientX),
+      y: Math.round(e.clientY),
+      t: now,
+    });
+
+    // Flush every 5 points (150ms worth)
+    clearTimeout(moveFlushTimer);
+    if (moveBatch.length >= 5) {
+      flushMoves();
+    } else {
+      moveFlushTimer = setTimeout(flushMoves, 200);
+    }
+  }, true);
+
   // ── Input listener (debounced per element) ─────────────────────
   const inputTimers = new WeakMap();
   document.addEventListener('input', (e) => {

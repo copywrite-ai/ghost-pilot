@@ -2,7 +2,7 @@
  * mouse.mjs — Bridge to ghost-mouse-driver Swift binary
  */
 
-import { execFileSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -53,9 +53,27 @@ export function moveAndClick(x, y, opts = {}) {
  */
 export function move(x, y, opts = {}) {
   const args = ['move', '--x', String(x), '--y', String(y)];
-  if (opts.duration) args.push('--duration', String(opts.duration));
-  if (opts.steps) args.push('--steps', String(opts.steps));
+  if (opts.duration != null) args.push('--duration', String(opts.duration));
+  if (opts.steps != null) args.push('--steps', String(opts.steps));
   exec(args);
+}
+
+/**
+ * Replay a batch of mouse positions in one process call.
+ * @param {Array<{x: number, y: number, delay: number}>} points
+ */
+export function batchMove(points) {
+  ensureDriver();
+  const json = JSON.stringify(points);
+  try {
+    execSync(`echo '${json.replace(/'/g, "'\\''")}' | "${driverPath}" batch-move`, {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      shell: true,
+    });
+  } catch (err) {
+    console.error('[mouse] batch-move failed');
+    throw err;
+  }
 }
 
 /**

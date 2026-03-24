@@ -410,6 +410,41 @@ case "click":
     click(at: point)
     fputs("✅ Clicked at (\(Int(x)), \(Int(y)))\n", stderr)
 
+case "batch-move":
+    // Read JSON array of {x, y, delay} from stdin
+    // This avoids process spawn overhead for high-frequency mouse replay
+    var inputData = Data()
+    while let byte = try? FileHandle.standardInput.read(upToCount: 4096) {
+        if byte.isEmpty { break }
+        inputData.append(byte)
+    }
+
+    struct MovePoint: Codable {
+        let x: Double
+        let y: Double
+        let delay: Double  // ms to wait after this point
+    }
+
+    guard let points = try? JSONDecoder().decode([MovePoint].self, from: inputData) else {
+        fputs("❌ batch-move: invalid JSON from stdin. Expected [{x,y,delay}, ...]\n", stderr)
+        exit(1)
+    }
+
+    fputs("🖱️  batch-move: replaying \(points.count) points\n", stderr)
+    for pt in points {
+        let cgPoint = CGPoint(x: pt.x, y: pt.y)
+        if let event = CGEvent(mouseEventSource: nil,
+                               mouseType: .mouseMoved,
+                               mouseCursorPosition: cgPoint,
+                               mouseButton: .left) {
+            event.post(tap: .cghidEventTap)
+        }
+        if pt.delay > 0 {
+            Thread.sleep(forTimeInterval: pt.delay / 1000.0)
+        }
+    }
+    fputs("✅ Done (\(points.count) points)\n", stderr)
+
 case "scroll":
     guard let xStr = parseFlag("--x", from: args), let x = Double(xStr),
           let yStr = parseFlag("--y", from: args), let y = Double(yStr),
