@@ -106,6 +106,9 @@ export async function runScenario(scenario, opts = {}) {
       // FPS tracking
       window.__gpMoveTimes = [];
       window.__gpStart = Date.now();
+      document.addEventListener('mousemove', () => {
+        window.__gpMoveTimes.push(Date.now());
+      }, true);
       window.__gpInterval = setInterval(() => {
         const el = Date.now() - window.__gpStart;
         const mm = String(Math.floor(el / 60000)).padStart(2, '0');
