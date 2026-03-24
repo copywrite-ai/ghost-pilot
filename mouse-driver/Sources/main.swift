@@ -431,7 +431,22 @@ case "batch-move":
     }
 
     fputs("🖱️  batch-move: replaying \(points.count) points\n", stderr)
-    for pt in points {
+
+    // Use absolute timestamps to prevent timer drift from CGEvent overhead
+    var timeInfo = mach_timebase_info_data_t()
+    mach_timebase_info(&timeInfo)
+    let startMach = mach_absolute_time()
+    var cumulativeDelayNs: UInt64 = 0
+
+    for (i, pt) in points.enumerated() {
+        // Wait until the absolute target time
+        if i > 0 {
+            let targetMach = startMach + cumulativeDelayNs * UInt64(timeInfo.denom) / UInt64(timeInfo.numer)
+            while mach_absolute_time() < targetMach {
+                // Busy-wait for sub-ms precision
+            }
+        }
+
         let cgPoint = CGPoint(x: pt.x, y: pt.y)
         if let event = CGEvent(mouseEventSource: nil,
                                mouseType: .mouseMoved,
@@ -439,9 +454,9 @@ case "batch-move":
                                mouseButton: .left) {
             event.post(tap: .cghidEventTap)
         }
-        if pt.delay > 0 {
-            Thread.sleep(forTimeInterval: pt.delay / 1000.0)
-        }
+
+        // Accumulate delay for next point's absolute target
+        cumulativeDelayNs += UInt64(pt.delay * 1_000_000)
     }
     fputs("✅ Done (\(points.count) points)\n", stderr)
 
