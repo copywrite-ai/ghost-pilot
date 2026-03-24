@@ -211,15 +211,14 @@ const INJECTED_SCRIPT = `
     }, 300);
   }, true);
 
-  // ── Mouse move listener (~30Hz sampling) ───────────────────────
+  // ── Mouse move listener (~120Hz sampling) ──────────────────────
   let lastMoveTime = 0;
-  const MOVE_INTERVAL = 33; // ~30Hz
+  const MOVE_INTERVAL = 8; // ~120Hz for smooth trajectory
   let moveBatch = [];
   let moveFlushTimer = null;
 
   function flushMoves() {
     if (moveBatch.length === 0) return;
-    // Send batch as a single step to reduce IPC overhead
     pushStep({
       action: 'moves',
       points: moveBatch.slice(),
@@ -240,12 +239,12 @@ const INJECTED_SCRIPT = `
       t: now,
     });
 
-    // Flush every 5 points (150ms worth)
+    // Flush every 20 points (~160ms worth)
     clearTimeout(moveFlushTimer);
-    if (moveBatch.length >= 5) {
+    if (moveBatch.length >= 20) {
       flushMoves();
     } else {
-      moveFlushTimer = setTimeout(flushMoves, 200);
+      moveFlushTimer = setTimeout(flushMoves, 100);
     }
   }, true);
 
@@ -360,7 +359,9 @@ export async function startRecording(opts = {}) {
       for (let i = 0; i < steps.length; i++) {
         const step = { ...steps[i] };
         const nextTs = steps[i + 1]?._timestamp;
-        const delay = nextTs ? Math.min(2000, Math.max(300, nextTs - step._timestamp)) : 800;
+        // For moves, use actual gap (can be 0). For other actions, min 300ms.
+        const minDelay = step.action === 'moves' ? 0 : 300;
+        const delay = nextTs ? Math.min(2000, Math.max(minDelay, nextTs - step._timestamp)) : 800;
         delete step._timestamp;
         step.delay = delay;
         cleanSteps.push(step);

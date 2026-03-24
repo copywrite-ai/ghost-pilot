@@ -206,8 +206,13 @@ export async function runScenario(scenario, opts = {}) {
           console.error(`  ⚠️  Unknown action: ${step.action}`);
       }
 
-      // Post-step delay
-      await sleep(postDelay);
+      // Post-step delay (skip for moves — timing is embedded in the points)
+      if (step.action !== 'moves') {
+        await sleep(postDelay);
+      } else if (postDelay > 50) {
+        // Only apply delay between moves if there's a real gap (e.g. user paused)
+        await sleep(Math.min(postDelay, 100));
+      }
     }
 
     if (verbose) console.log(`\n✅ Scenario complete: ${scenario.name}\n`);
