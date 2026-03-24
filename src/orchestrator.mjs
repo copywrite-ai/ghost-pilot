@@ -63,6 +63,40 @@ export async function runScenario(scenario, opts = {}) {
       console.log(`   Window: (${chrome.windowX}, ${chrome.windowY})\n`);
     }
 
+    // ── 5-second countdown before replay ──
+    if (verbose) console.log('⏳ Starting countdown — 5 seconds...');
+    await page.evaluate(async () => {
+      const overlay = document.createElement('div');
+      overlay.id = '__gpCountdown';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:9999999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(12px);transition:opacity 0.4s;';
+
+      const num = document.createElement('div');
+      num.style.cssText = 'font:bold 120px/1 -apple-system,sans-serif;color:#fff;text-shadow:0 4px 40px rgba(0,0,0,0.5);transition:transform 0.3s,opacity 0.3s;';
+      overlay.appendChild(num);
+      document.body.appendChild(overlay);
+
+      for (let i = 5; i >= 1; i--) {
+        num.textContent = i;
+        num.style.transform = 'scale(1.3)';
+        num.style.opacity = '0.3';
+        // trigger reflow
+        void num.offsetWidth;
+        num.style.transform = 'scale(1)';
+        num.style.opacity = '1';
+        await new Promise(r => setTimeout(r, 1000));
+      }
+
+      // Flash "GO"
+      num.textContent = 'GO';
+      num.style.color = '#34c759';
+      await new Promise(r => setTimeout(r, 500));
+
+      overlay.style.opacity = '0';
+      await new Promise(r => setTimeout(r, 400));
+      overlay.remove();
+    });
+    if (verbose) console.log('▶️  Replay starting!\n');
+
     // Inject playback HUD
     await page.evaluate(() => {
       const hud = document.createElement('div');

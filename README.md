@@ -39,9 +39,21 @@ npm install
 npx playwright install chromium
 ```
 
-### 3. Run a Scenario
+### 3. Record a Scenario
+```bash
+# Open a browser, interact with the page, press Ctrl+C to stop
+node bin/ghost-pilot.mjs record --url https://antdv.com/components/button -o scenarios/antdv.json
+
+# Custom viewport size
+node bin/ghost-pilot.mjs record --url https://example.com -o demo.json --width 1920 --height 1080
+```
+
+### 4. Run a Scenario
 ```bash
 node bin/ghost-pilot.mjs run scenarios/antdv-button.json
+
+# Slow down playback (0.5x speed)
+node bin/ghost-pilot.mjs run scenarios/antdv-button.json --speed 0.5
 ```
 
 ## 📝 Scenario Format
