@@ -74,6 +74,18 @@ export function scroll(x, y, delta) {
 }
 
 /**
+ * Smooth pixel-based scroll at (x,y) — mimics trackpad gesture.
+ * @param {number} pixels - total pixels (negative = down)
+ * @param {object} opts - { duration, steps }
+ */
+export function smoothScroll(x, y, pixels, opts = {}) {
+  const args = ['smooth-scroll', '--x', String(x), '--y', String(y), '--pixels', String(pixels)];
+  if (opts.duration) args.push('--duration', String(opts.duration));
+  if (opts.steps) args.push('--steps', String(opts.steps));
+  exec(args);
+}
+
+/**
  * Type text using keyboard events.
  */
 export function type(text, opts = {}) {

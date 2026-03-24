@@ -102,6 +102,43 @@ func scrollAt(point: CGPoint, deltaY: Int32) {
     }
 }
 
+/// Smooth pixel-based scroll that mimics trackpad gesture.
+/// totalPixels: total pixels to scroll (negative = down, positive = up)
+/// durationMs: duration of the scroll gesture
+/// steps: number of scroll events to emit
+func smoothScroll(at point: CGPoint, totalPixels: Int, durationMs: Int = 600, steps: Int = 30) {
+    // Move to position first
+    if let moveEvent = CGEvent(mouseEventSource: nil,
+                               mouseType: .mouseMoved,
+                               mouseCursorPosition: point,
+                               mouseButton: .left) {
+        moveEvent.post(tap: .cghidEventTap)
+    }
+    Thread.sleep(forTimeInterval: 0.05)
+
+    let stepDelay = Double(durationMs) / Double(steps) / 1000.0
+
+    // Distribute pixels across steps with ease-out curve
+    for i in 1...steps {
+        let prevProgress = easeOutCubic(Double(i - 1) / Double(steps))
+        let currProgress = easeOutCubic(Double(i) / Double(steps))
+        let stepPixels = Int32(round(Double(totalPixels) * (currProgress - prevProgress)))
+
+        if stepPixels == 0 { continue }
+
+        if let scrollEvent = CGEvent(scrollWheelEvent2Source: nil,
+                                      units: .pixel,
+                                      wheelCount: 1,
+                                      wheel1: stepPixels,
+                                      wheel2: 0,
+                                      wheel3: 0) {
+            scrollEvent.post(tap: .cghidEventTap)
+        }
+
+        Thread.sleep(forTimeInterval: stepDelay)
+    }
+}
+
 func typeText(_ text: String, delayMs: Int = 50) {
     for char in text {
         let str = String(char)
@@ -383,6 +420,20 @@ case "scroll":
     let point = CGPoint(x: x, y: y)
     scrollAt(point: point, deltaY: delta)
     fputs("✅ Scrolled at (\(Int(x)), \(Int(y))) delta=\(delta)\n", stderr)
+
+case "smooth-scroll":
+    guard let xStr = parseFlag("--x", from: args), let x = Double(xStr),
+          let yStr = parseFlag("--y", from: args), let y = Double(yStr),
+          let pixelsStr = parseFlag("--pixels", from: args), let pixels = Int(pixelsStr) else {
+        fputs("❌ smooth-scroll requires --x X --y Y --pixels P\n", stderr)
+        exit(1)
+    }
+    let duration = Int(parseFlag("--duration", from: args) ?? "600") ?? 600
+    let steps = Int(parseFlag("--steps", from: args) ?? "30") ?? 30
+    let point = CGPoint(x: x, y: y)
+    fputs("↕️  smooth-scroll at (\(Int(x)), \(Int(y))) pixels=\(pixels) duration=\(duration)ms\n", stderr)
+    smoothScroll(at: point, totalPixels: pixels, durationMs: duration, steps: steps)
+    fputs("✅ Done\n", stderr)
 
 case "type":
     guard let text = parseFlag("--text", from: args) else {

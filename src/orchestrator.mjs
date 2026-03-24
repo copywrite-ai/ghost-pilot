@@ -116,29 +116,32 @@ export async function runScenario(scenario, opts = {}) {
         }
 
         case 'scroll': {
-          // Scroll at current position or at element
+          // Convert recorded delta to pixels (roughly 40px per "line" of scroll)
+          const delta = step.delta || -3;
+          const pixels = delta * 40;  // negative = scroll down
+
+          // Get a position in center of viewport for scrolling
+          const vp = page.viewportSize();
+          const scrollX = chrome.windowX + chrome.chromeLeft + (vp?.width || 720) / 2;
+          const scrollY = chrome.windowY + chrome.chromeTop + (vp?.height || 450) / 2;
+
+          // If a target element is specified, move there first
           if (step.selector) {
             const el = await page.$(step.selector);
             if (el) {
               const box = await el.boundingBox();
               if (box) {
                 const pos = toScreenCoords(chrome, box);
-                mouse.move(pos.x, pos.y, { duration: Math.round(moveDuration / 2) });
-                await sleep(200);
+                mouse.move(pos.x, pos.y, { duration: Math.round(moveDuration / 3) });
+                await sleep(150);
               }
             }
           }
-          const delta = step.delta || -3;
-          // Do multiple small scrolls for natural feel
-          const scrollSteps = Math.abs(delta);
-          const scrollDir = delta > 0 ? 1 : -1;
-          for (let s = 0; s < scrollSteps; s++) {
-            mouse.scroll(
-              ...(await getCurrentMouseScreenPos(page, chrome)),
-              scrollDir
-            );
-            await sleep(100);
-          }
+
+          if (verbose) console.log(`     → smooth-scroll ${pixels}px`);
+          mouse.smoothScroll(scrollX, scrollY, pixels, {
+            duration: Math.max(300, Math.min(1200, Math.abs(pixels) * 2)),
+          });
           break;
         }
 
