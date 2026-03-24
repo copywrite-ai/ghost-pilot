@@ -270,24 +270,45 @@ const INJECTED_SCRIPT = `
   // ── Visual feedback + Stop button ──────────────────────────────
   const badge = document.createElement('div');
   badge.id = '__ghostPilotBadge';
-  badge.style.cssText = 'position:fixed;top:8px;right:8px;z-index:999999;display:flex;align-items:center;gap:8px;background:rgba(30,30,30,0.92);color:#fff;padding:6px 10px 6px 14px;border-radius:10px;font:12px/1.4 -apple-system,sans-serif;pointer-events:auto;backdrop-filter:blur(8px);box-shadow:0 2px 12px rgba(0,0,0,0.3);';
+  badge.style.cssText = 'position:fixed;top:8px;right:8px;z-index:999999;display:flex;align-items:center;gap:8px;background:rgba(30,30,30,0.92);color:#fff;padding:6px 10px 6px 14px;border-radius:10px;font:12px/1.4 -apple-system,sans-serif;pointer-events:auto;backdrop-filter:blur(8px);box-shadow:0 2px 12px rgba(0,0,0,0.3);';\
 
   const indicator = document.createElement('span');
   indicator.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#ff3b30;animation:__gp_pulse 1.5s ease infinite;';
   badge.appendChild(indicator);
 
-  const label = document.createElement('span');
-  label.textContent = 'Recording';
-  label.style.cssText = 'margin-right:4px;';
-  badge.appendChild(label);
+  const timeLabel = document.createElement('span');
+  timeLabel.textContent = '00:00';
+  timeLabel.style.cssText = 'font-variant-numeric:tabular-nums;min-width:36px;';
+  badge.appendChild(timeLabel);
+
+  // Separator
+  const sep1 = document.createElement('span');
+  sep1.textContent = '·';
+  sep1.style.cssText = 'opacity:0.4;';
+  badge.appendChild(sep1);
+
+  const fpsLabel = document.createElement('span');
+  fpsLabel.textContent = '0 fps';
+  fpsLabel.style.cssText = 'font-variant-numeric:tabular-nums;min-width:40px;color:#8e8e93;';
+  badge.appendChild(fpsLabel);
+
+  const sep2 = document.createElement('span');
+  sep2.textContent = '·';
+  sep2.style.cssText = 'opacity:0.4;';
+  badge.appendChild(sep2);
+
+  const stepsLabel = document.createElement('span');
+  stepsLabel.textContent = '0 steps';
+  stepsLabel.style.cssText = 'font-variant-numeric:tabular-nums;color:#8e8e93;';
+  badge.appendChild(stepsLabel);
 
   const stopBtn = document.createElement('button');
   stopBtn.textContent = 'Stop';
-  stopBtn.style.cssText = 'background:#ff3b30;color:#fff;border:none;border-radius:6px;padding:3px 12px;font:12px/1.4 -apple-system,sans-serif;cursor:pointer;font-weight:600;';
+  stopBtn.style.cssText = 'background:#ff3b30;color:#fff;border:none;border-radius:6px;padding:3px 12px;font:12px/1.4 -apple-system,sans-serif;cursor:pointer;font-weight:600;margin-left:4px;';
   stopBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     rec.recording = false;
-    label.textContent = 'Stopping...';
+    timeLabel.textContent = 'Stopping...';
     indicator.style.background = '#34c759';
     stopBtn.disabled = true;
     stopBtn.style.opacity = '0.5';
@@ -302,13 +323,29 @@ const INJECTED_SCRIPT = `
   style.textContent = '@keyframes __gp_pulse{0%,100%{opacity:1}50%{opacity:0.3}}';
   document.head.appendChild(style);
 
-  const counter = document.createElement('div');
-  counter.id = '__ghostPilotCounter';
-  counter.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:999999;background:rgba(0,0,0,0.7);color:#fff;padding:4px 10px;border-radius:6px;font:11px/1.4 monospace;pointer-events:none;';
-  document.body.appendChild(counter);
+  // ── Timer + FPS tracker ──────────────────────────────────────
+  const recStart = Date.now();
+  const mouseTimes = [];
+
+  document.addEventListener('mousemove', () => {
+    mouseTimes.push(Date.now());
+  }, true);
+
   setInterval(() => {
-    counter.textContent = rec.stepCount + ' steps recorded';
-  }, 200);
+    // Elapsed time
+    const elapsed = Math.floor((Date.now() - recStart) / 1000);
+    const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+    const ss = String(elapsed % 60).padStart(2, '0');
+    timeLabel.textContent = mm + ':' + ss;
+
+    // Mouse FPS (events in last 1s)
+    const now = Date.now();
+    while (mouseTimes.length && mouseTimes[0] < now - 1000) mouseTimes.shift();
+    fpsLabel.textContent = mouseTimes.length + ' fps';
+
+    // Steps
+    stepsLabel.textContent = rec.stepCount + ' steps';
+  }, 250);
 
   console.log('[ghost-pilot] Recording started. Interact with the page.');
 })();
