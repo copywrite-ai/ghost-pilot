@@ -270,7 +270,7 @@ const INJECTED_SCRIPT = `
   // ── Visual feedback ────────────────────────────────────────────
   const badge = document.createElement('div');
   badge.id = '__ghostPilotBadge';
-  badge.innerHTML = '🛩️ ghost-pilot recording — <b>Ctrl+C in terminal to stop</b>';
+  badge.innerHTML = '\ud83d\udee9\ufe0f ghost-pilot recording \u2014 <b>\u2318+\u2325+C to stop</b>';
   badge.style.cssText = 'position:fixed;top:8px;right:8px;z-index:999999;background:rgba(220,40,40,0.9);color:#fff;padding:6px 14px;border-radius:8px;font:12px/1.4 -apple-system,sans-serif;pointer-events:none;backdrop-filter:blur(4px);';
   document.body.appendChild(badge);
 
@@ -282,7 +282,21 @@ const INJECTED_SCRIPT = `
     counter.textContent = rec.stepCount + ' steps recorded';
   }, 200);
 
-  console.log('[ghost-pilot] 🔴 Recording started. Interact with the page.');
+  // ── Stop shortcut: Cmd+Option+C ─────────────────────────────
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey && e.altKey && (e.key === 'c' || e.key === 'C')) {
+      e.preventDefault();
+      rec.recording = false;
+      badge.innerHTML = '\u2705 Stopping...';
+      badge.style.background = 'rgba(40,180,40,0.9)';
+      // Flush remaining moves
+      if (typeof flushMoves === 'function') flushMoves();
+      // Call Node.js stop function
+      if (window.__ghostPilotStop) window.__ghostPilotStop();
+    }
+  }, true);
+
+  console.log('[ghost-pilot] \ud83d\udd34 Recording started. Interact with the page.');
 })();
 `;
 
@@ -347,12 +361,15 @@ export async function startRecording(opts = {}) {
     }
   });
 
-  // Wait for Ctrl+C
+  // Wait for stop (via Cmd+Option+C in browser or Ctrl+C in terminal)
   await new Promise((resolve) => {
+    let stopping = false;
     const cleanup = async () => {
-      console.log(`\n\n⏹  Stopping recording...`);
+      if (stopping) return;
+      stopping = true;
+      console.log(`\n\n\u23f9  Stopping recording...`);
 
-      // Steps are already in Node.js memory — no need to extract from page!
+      // Steps are already in Node.js memory \u2014 no need to extract from page!
 
       // Clean up timestamps, compute delays
       const cleanSteps = [];
@@ -380,7 +397,7 @@ export async function startRecording(opts = {}) {
 
       // Save
       writeFileSync(output, JSON.stringify(scenario, null, 2));
-      console.log(`💾 Saved ${cleanSteps.length} steps → ${output}`);
+      console.log(`\ud83d\udcbe Saved ${cleanSteps.length} steps \u2192 ${output}`);
 
       try {
         await browser.close();
@@ -389,6 +406,10 @@ export async function startRecording(opts = {}) {
       resolve();
     };
 
+    // Expose stop function to browser (for Cmd+Option+C)
+    page.exposeFunction('__ghostPilotStop', cleanup).catch(() => {});
+
+    // Also support Ctrl+C in terminal
     process.on('SIGINT', cleanup);
   });
 }
