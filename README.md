@@ -2,37 +2,49 @@
 
 **Playwright orchestration × real OS-level mouse events — web automation built for screen recording.**
 
-ghost-pilot solves a unique problem: automating interactions on real websites while producing **natural-looking mouse movements** visible to screen recording software. Unlike pure browser automation (Playwright/Puppeteer) which uses synthetic events invisible to screen recorders, ghost-pilot moves the actual OS cursor using macOS CGEvent API.
+`ghost-pilot` solves a unique problem: automating interactions on real websites while producing **human-like mouse movements** visible to screen recording software. Unlike pure browser automation (Playwright/Puppeteer) which uses synthetic events invisible to screen recorders, `ghost-pilot` moves the actual MacOS cursor using the native CGEvent API.
 
-## How It Works
+## ✨ Key Features
 
+-   **Real Mouse Interaction**: Generates system-level mouse events (move, click, scroll) that are captured by screen recorders like Screen Studio, OBS, or QuickTime.
+-   **Smooth Trajectories**: Uses a Swift-based driver to calculate and execute natural-looking mouse paths, avoiding the "robotic" linear movement of standard automation.
+-   **Playwright Orchestration**: Leverages the power of Playwright for robust element selection, page navigation, and state waiting.
+-   **Visual Feedback**: Optional injected UI badge showing real-time recording status, elapsed time, and mouse FPS.
+-   **Coordinate Precision**: Automatically maps Playwright's viewport coordinates to MacOS screen coordinates, ensuring high-fidelity interaction regardless of window position.
+-   **JSON Scenarios**: Easily define complex interaction flows in a simple, declarative JSON format.
+
+## 🚀 How It Works
+
+```mermaid
+graph TD
+    A[Playwright Orchestrator] -->|1. Find Element| B[Browser Viewport]
+    B -->|2. Get Coordinates| C[Coordinate Converter]
+    C -->|3. Screen Coords| D[Swift Mouse Driver]
+    D -->|4. CGEvent| E[OS Cursor Move/Click]
+    E -->|5. Screen Record| F[High-Fidelity Video]
 ```
-Playwright (orchestration)          ghost-mouse-driver (real mouse)
-┌─────────────────────────┐        ┌──────────────────────────┐
-│ 1. Open URL             │        │                          │
-│ 2. Wait for elements    │──────►│ 4. Smooth CGEvent move   │
-│ 3. Get screen coords    │        │ 5. Real OS click         │
-│ 6. Verify result        │◄──────│                          │
-└─────────────────────────┘        └──────────────────────────┘
-```
 
-## Quick Start
+## 🛠️ Quick Start
 
+### 1. Build the Mouse Driver
 ```bash
-# 1. Build the mouse driver
 cd mouse-driver && swift build -c release
 cp .build/release/ghost-mouse-driver ../ghost-mouse-driver-bin
 cd ..
+```
 
-# 2. Install dependencies
+### 2. Install Dependencies
+```bash
 npm install
 npx playwright install chromium
+```
 
-# 3. Run a scenario
+### 3. Run a Scenario
+```bash
 node bin/ghost-pilot.mjs run scenarios/antdv-button.json
 ```
 
-## Scenario Format
+## 📝 Scenario Format
 
 ```json
 {
@@ -51,28 +63,41 @@ node bin/ghost-pilot.mjs run scenarios/antdv-button.json
 }
 ```
 
-## Supported Actions
+## 🎮 Supported Actions
 
 | Action | Description |
 |--------|-------------|
-| `click` | Move to element and click |
-| `hover` | Move to element without clicking |
-| `scroll` | Scroll by delta lines (negative = down) |
-| `type` | Click input then type text |
-| `wait` | Pause for N milliseconds |
-| `navigate` | Go to a different URL |
+| `click` | Move to element smoothly and perform a real OS click |
+| `hover` | Move to element smoothly without clicking |
+| `scroll` | Natural wheel scroll by delta lines (negative = down) |
+| `type` | Click an input field and type text with natural delays |
+| `wait` | Pause for a specific duration (milliseconds) |
+| `navigate` | Navigate to a new URL |
 
-## Requirements
+## ⚠️ Requirements
 
-- macOS 12+ (uses CGEvent API)
-- Swift 5.9+
-- Node.js 18+
-- Accessibility permissions for terminal (System Settings → Privacy → Accessibility)
+-   **macOS 12+** (uses `CoreGraphics` and `CGEvent` API)
+-   **Swift 5.9+** (toolchain for building the driver)
+-   **Node.js 18+**
+-   **Accessibility Permissions**: The terminal running `ghost-pilot` must have Accessibility permissions.
+    -   Go to **System Settings** → **Privacy & Security** → **Accessibility**.
+    -   Add and enable your terminal (e.g., iTerm2, Terminal, or VS Code).
 
-## Architecture
+## 🩺 Troubleshooting
 
-- **`bin/ghost-pilot.mjs`** — CLI entry point
-- **`src/orchestrator.mjs`** — Playwright + mouse driver coordination
-- **`src/mouse.mjs`** — Node.js → Swift binary bridge
-- **`src/coordinate.mjs`** — Viewport → screen coordinate conversion
-- **`mouse-driver/`** — Swift CGEvent binary (move, click, scroll, type, record, replay)
+### Mouse coordinates are off
+- Ensure the browser window is NOT in full-screen mode unless the scenario is configured for it.
+- Check if your displays have "Displays have separate Spaces" enabled in Mission Control settings.
+- The browser window should be focused before the clicks start.
+
+### "Operation not permitted" error
+- This is usually a MacOS permission issue. Make sure your terminal or IDE has Accessibility permissions (see Requirements).
+
+## 📂 Project Structure
+
+-   **`bin/ghost-pilot.mjs`**: CLI entry point and scenario runner.
+-   **`src/orchestrator.mjs`**: Orchestrates Playwright for element detection and the Swift driver for mouse movements.
+-   **`src/mouse.mjs`**: Bridge between Node.js and the Swift binary.
+-   **`src/coordinate.mjs`**: Handles viewport-to-screen coordinate transformations.
+-   **`src/recorder.mjs`**: High-frequency mouse trajectory capture and replay logic.
+-   **`mouse-driver/`**: Native Swift code for low-level OS interaction.
