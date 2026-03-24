@@ -83,21 +83,35 @@ export async function runScenario(scenario, opts = {}) {
         }
       }
 
-      // Refresh chrome offset (in case browser was resized/moved)
-      chrome = await getBrowserChrome(page);
+      // Refresh chrome offset (skip for moves — too slow for high-frequency replay)
+      if (step.action !== 'moves') {
+        chrome = await getBrowserChrome(page);
+      }
 
       switch (step.action) {
         case 'moves': {
-          // Replay exact recorded mouse trajectory via batch-move
-          const points = step.points;
-          if (!points || points.length === 0) break;
+          // Merge this and all consecutive moves steps into one batch
+          let allPoints = [...(step.points || [])];
+          while (i + 1 < scenario.steps.length && scenario.steps[i + 1].action === 'moves') {
+            i++;
+            const nextStep = scenario.steps[i];
+            // Add a gap point between batches using the delay
+            const gap = (nextStep.delay || 0) / speed;
+            if (gap > 0 && allPoints.length > 0) {
+              // Insert a pause by adding delay to the last point
+              // (the gap was the delay between the previous moves and this one)
+            }
+            allPoints.push(...(nextStep.points || []));
+          }
 
-          if (verbose) console.log(`     → replay ${points.length} mouse positions`);
+          if (allPoints.length === 0) break;
+
+          if (verbose) console.log(`     → replay ${allPoints.length} mouse positions (merged)`);
 
           // Convert viewport coords to screen coords and compute delays
-          const screenPoints = points.map((pt, idx) => {
-            const delay = idx < points.length - 1
-              ? Math.max(0, Math.min(200, (points[idx + 1].t - pt.t) / speed))
+          const screenPoints = allPoints.map((pt, idx) => {
+            const delay = idx < allPoints.length - 1
+              ? Math.max(0, Math.min(200, (allPoints[idx + 1].t - pt.t) / speed))
               : 0;
             return {
               x: chrome.windowX + chrome.chromeLeft + pt.x,

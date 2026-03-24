@@ -267,12 +267,40 @@ const INJECTED_SCRIPT = `
     }, 500));
   }, true);
 
-  // ── Visual feedback ────────────────────────────────────────────
+  // ── Visual feedback + Stop button ──────────────────────────────
   const badge = document.createElement('div');
   badge.id = '__ghostPilotBadge';
-  badge.innerHTML = '\ud83d\udee9\ufe0f ghost-pilot recording \u2014 <b>\u2318+\u2325+C to stop</b>';
-  badge.style.cssText = 'position:fixed;top:8px;right:8px;z-index:999999;background:rgba(220,40,40,0.9);color:#fff;padding:6px 14px;border-radius:8px;font:12px/1.4 -apple-system,sans-serif;pointer-events:none;backdrop-filter:blur(4px);';
+  badge.style.cssText = 'position:fixed;top:8px;right:8px;z-index:999999;display:flex;align-items:center;gap:8px;background:rgba(30,30,30,0.92);color:#fff;padding:6px 10px 6px 14px;border-radius:10px;font:12px/1.4 -apple-system,sans-serif;pointer-events:auto;backdrop-filter:blur(8px);box-shadow:0 2px 12px rgba(0,0,0,0.3);';
+
+  const indicator = document.createElement('span');
+  indicator.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#ff3b30;animation:__gp_pulse 1.5s ease infinite;';
+  badge.appendChild(indicator);
+
+  const label = document.createElement('span');
+  label.textContent = 'Recording';
+  label.style.cssText = 'margin-right:4px;';
+  badge.appendChild(label);
+
+  const stopBtn = document.createElement('button');
+  stopBtn.textContent = 'Stop';
+  stopBtn.style.cssText = 'background:#ff3b30;color:#fff;border:none;border-radius:6px;padding:3px 12px;font:12px/1.4 -apple-system,sans-serif;cursor:pointer;font-weight:600;';
+  stopBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    rec.recording = false;
+    label.textContent = 'Stopping...';
+    indicator.style.background = '#34c759';
+    stopBtn.disabled = true;
+    stopBtn.style.opacity = '0.5';
+    if (typeof flushMoves === 'function') flushMoves();
+    if (window.__ghostPilotStop) window.__ghostPilotStop();
+  });
+  badge.appendChild(stopBtn);
   document.body.appendChild(badge);
+
+  // Pulse animation
+  const style = document.createElement('style');
+  style.textContent = '@keyframes __gp_pulse{0%,100%{opacity:1}50%{opacity:0.3}}';
+  document.head.appendChild(style);
 
   const counter = document.createElement('div');
   counter.id = '__ghostPilotCounter';
@@ -282,21 +310,7 @@ const INJECTED_SCRIPT = `
     counter.textContent = rec.stepCount + ' steps recorded';
   }, 200);
 
-  // ── Stop shortcut: Cmd+Option+C ─────────────────────────────
-  document.addEventListener('keydown', (e) => {
-    if (e.metaKey && e.altKey && (e.key === 'c' || e.key === 'C')) {
-      e.preventDefault();
-      rec.recording = false;
-      badge.innerHTML = '\u2705 Stopping...';
-      badge.style.background = 'rgba(40,180,40,0.9)';
-      // Flush remaining moves
-      if (typeof flushMoves === 'function') flushMoves();
-      // Call Node.js stop function
-      if (window.__ghostPilotStop) window.__ghostPilotStop();
-    }
-  }, true);
-
-  console.log('[ghost-pilot] \ud83d\udd34 Recording started. Interact with the page.');
+  console.log('[ghost-pilot] Recording started. Interact with the page.');
 })();
 `;
 
