@@ -1,0 +1,54 @@
+{
+  "name": "Ant Design Vue - Button Components",
+  "url": "https://antdv.com/components/button",
+  "viewport": { "width": 1440, "height": 900 },
+  "waitForLoad": ".ant-btn",
+  "initialDelay": 1500,
+  "endDelay": 2000,
+  "steps": [
+    {
+      "action": "click",
+      "selector": "button.ant-btn-primary",
+      "label": "Click Primary Button",
+      "delay": 800
+    },
+    {
+      "action": "scroll",
+      "delta": -3,
+      "label": "Scroll down to see more button types",
+      "delay": 600
+    },
+    {
+      "action": "click",
+      "selector": "button.ant-btn-dashed",
+      "label": "Click Dashed Button",
+      "delay": 800
+    },
+    {
+      "action": "scroll",
+      "delta": -3,
+      "label": "Continue scrolling",
+      "delay": 600
+    },
+    {
+      "action": "click",
+      "selector": "button.ant-btn-dangerous",
+      "waitFor": "button.ant-btn-dangerous",
+      "label": "Click Danger Button",
+      "delay": 800
+    },
+    {
+      "action": "scroll",
+      "delta": -4,
+      "label": "Scroll to button sizes section",
+      "delay": 600
+    },
+    {
+      "action": "click",
+      "selector": ".ant-btn-lg",
+      "waitFor": ".ant-btn-lg",
+      "label": "Click Large Button",
+      "delay": 1000
+    }
+  ]
+}

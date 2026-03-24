@@ -1,0 +1,16 @@
+{
+  "name": "ghost-pilot",
+  "version": "0.1.0",
+  "description": "Playwright orchestration × real OS-level mouse events — web automation built for screen recording",
+  "type": "module",
+  "bin": {
+    "ghost-pilot": "./bin/ghost-pilot.mjs"
+  },
+  "scripts": {
+    "start": "node bin/ghost-pilot.mjs",
+    "build:driver": "cd mouse-driver && swift build -c release && cp .build/release/ghost-mouse-driver ../ghost-mouse-driver-bin"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  }
+}

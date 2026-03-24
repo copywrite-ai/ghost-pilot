@@ -1,0 +1,4 @@
+node_modules/
+.build/
+ghost-mouse-driver-bin
+*.DS_Store
