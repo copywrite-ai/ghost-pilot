@@ -336,15 +336,14 @@ export async function startRecording(opts = {}) {
   const browser = await chromium.launch({
     headless: false,
     args: [
-      '--window-position=0,0',
-      `--window-size=${viewport.width},${viewport.height}`,
+      '--start-fullscreen',
       '--disable-infobars',
       '--no-first-run',
       '--no-default-browser-check',
     ],
   });
 
-  const context = await browser.newContext({ viewport });
+  const context = await browser.newContext({ viewport: null }); // null = use full window size
   const page = await context.newPage();
 
   // Expose function BEFORE navigation so it's available immediately
@@ -398,11 +397,17 @@ export async function startRecording(opts = {}) {
         cleanSteps.push(step);
       }
 
+      // Get actual viewport from fullscreen browser
+      const actualViewport = await page.evaluate(() => ({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      })).catch(() => viewport);
+
       // Build scenario
       const scenario = {
         name: `Recorded: ${new URL(url).hostname}`,
         url,
-        viewport,
+        viewport: actualViewport,
         waitForLoad: 'body',
         initialDelay: 1500,
         endDelay: 2000,
