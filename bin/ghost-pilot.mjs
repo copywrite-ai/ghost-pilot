@@ -7,6 +7,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { runScenario } from '../src/orchestrator.mjs';
+import { startRecording } from '../src/recorder.mjs';
 
 const args = process.argv.slice(2);
 
@@ -16,14 +17,26 @@ function printUsage() {
 
 USAGE:
   ghost-pilot run <scenario.json> [options]
+  ghost-pilot record --url <URL> [-o output.json]
 
-OPTIONS:
+COMMANDS:
+  run       Run a recorded/written scenario with real mouse events
+  record    Open a browser and record your interactions as scenario JSON
+
+RUN OPTIONS:
   --speed <n>     Playback speed multiplier (default: 1.0)
   --quiet         Suppress verbose output
 
+RECORD OPTIONS:
+  --url <URL>     Page to open for recording (required)
+  -o <file>       Output scenario file (default: scenario.json)
+  --width <n>     Viewport width (default: 1440)
+  --height <n>    Viewport height (default: 900)
+
 EXAMPLES:
-  ghost-pilot run scenarios/antdv-button.json
-  ghost-pilot run scenarios/antdv-button.json --speed 0.8
+  ghost-pilot record --url https://antdv.com/components/button -o scenarios/antdv.json
+  ghost-pilot run scenarios/antdv.json
+  ghost-pilot run scenarios/antdv.json --speed 0.8
 `);
 }
 
@@ -74,6 +87,38 @@ if (command === 'run') {
       console.error('❌ Scenario failed:', err.message);
       process.exit(1);
     });
+
+} else if (command === 'record') {
+  // Parse record flags
+  let url = null;
+  let output = 'scenario.json';
+  let width = 1440;
+  let height = 900;
+
+  for (let i = 1; i < args.length; i++) {
+    if (args[i] === '--url' && args[i + 1]) { url = args[i + 1]; i++; }
+    else if ((args[i] === '-o' || args[i] === '--output') && args[i + 1]) { output = args[i + 1]; i++; }
+    else if (args[i] === '--width' && args[i + 1]) { width = parseInt(args[i + 1]); i++; }
+    else if (args[i] === '--height' && args[i + 1]) { height = parseInt(args[i + 1]); i++; }
+  }
+
+  if (!url) {
+    console.error('❌ Please specify --url for recording.\n');
+    printUsage();
+    process.exit(1);
+  }
+
+  startRecording({
+    url,
+    output: resolve(output),
+    viewport: { width, height },
+  })
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error('❌ Recording failed:', err.message);
+      process.exit(1);
+    });
+
 } else {
   console.error(`❌ Unknown command: ${command}\n`);
   printUsage();
